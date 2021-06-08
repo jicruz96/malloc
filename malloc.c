@@ -34,7 +34,7 @@ size_t align(size_t size)
  *
  * Note: for learning purposes only
  **/
-void *naive_malloc(size_t size)
+void *_malloc(size_t size)
 {
 	size_t chunk_size = align(size + sizeof(size_t));
 	static void *next_spot;
