@@ -6,7 +6,7 @@
 
 
 
-size_t largest = 0;
+size_t largest_available_chunk_size = 0;
 
 /**
  * align - returns the page-aligned value of a quantity
@@ -36,41 +36,75 @@ void *_malloc(size_t size)
 {
 	size_t chunk_size = align(size + sizeof(size_t));
 	static void *first_spot, *next_spot;
-	static size_t largest, available, allocated;
+	static size_t available;
 	void *tmp;
 	static long pagesize;
 
 	if (size == 0)
 		return (NULL);
-	if (chunk_size <= largest)
-	{
-		for (tmp = first_spot; is_allocated(tmp); )
-			tmp = shift_address(tmp, sizeof_chunk(tmp));
-		return (tmp);
-	}
+
+	if (chunk_size <= largest_available_chunk_size)
+		return (return_existing_chunk(first_spot, chunk_size));
+
 	while (available < chunk_size)
 	{
 		if (!first_spot)
 		{
 			pagesize = sysconf(_SC_PAGESIZE);
-			first_spot = sbrk(pagesize), next_spot = first_spot;
-			if (next_spot == (void *)-1)
+			first_spot = sbrk(pagesize);
+			if (first_spot == (void *)-1)
 			{
-				next_spot = NULL, first_spot = NULL;
+				next_spot = NULL;
+				first_spot = NULL;
 				return (NULL);
 			}
+			next_spot = first_spot;
 		}
 		else if (sbrk(pagesize) == (void *)-1)
 		{
 			return (NULL);
 		}
-		allocated += pagesize;
+
 		available += pagesize;
 	}
+
 	tmp = next_spot;
 	memcpy(tmp, &chunk_size, sizeof(chunk_size));
 	allocate(tmp);
-	next_spot = shift_address(tmp, chunk_size);
+	next_spot = next_chunk(tmp);
 	available -= chunk_size;
 	return (shift_address(tmp, sizeof(chunk_size)));
+}
+
+/**
+ * return_existing_chunk - checks init'd data segment for available chunks
+ * @tmp: pointer to current chunk
+ * @chunk_size: desired chunk size
+ * Return: pointer to a chunk of size equal or greater to chunk_size
+ **/
+void *return_existing_chunk(void *tmp, size_t chunk_size)
+{
+	void *tmp2;
+	static size_t tmp_largest;
+
+
+	if (!is_allocated(tmp) && sizeof_chunk(tmp) >= chunk_size)
+	{
+		allocate(tmp);
+		if (sizeof_chunk(tmp) <= largest_available_chunk_size)
+		{
+			tmp2 = next_chunk(tmp);
+			for (tmp2 = next_chunk(tmp); sizeof_chunk(tmp2); tmp2 = next_chunk(tmp2))
+				if (!is_allocated(tmp2) && sizeof_chunk(tmp2) > tmp_largest)
+					tmp_largest = sizeof_chunk(tmp2);
+			largest_available_chunk_size = tmp_largest;
+		}
+		tmp_largest  = 0;
+		return (shift_address(tmp, sizeof(size_t)));
+	}
+
+	if (!is_allocated(tmp) && sizeof_chunk(tmp) > tmp_largest)
+		tmp_largest = sizeof_chunk(tmp);
+
+	return (return_existing_chunk(next_chunk(tmp), chunk_size));
 }
