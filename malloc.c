@@ -42,7 +42,7 @@ void *_malloc(size_t size)
 
 	if (size == 0)
 		return (NULL);
-	if (chunk_size < largest)
+	if (chunk_size <= largest)
 	{
 		for (tmp = first_spot; is_allocated(tmp); )
 			tmp = shift_address(tmp, sizeof_chunk(tmp));
