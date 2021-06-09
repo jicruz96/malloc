@@ -4,12 +4,9 @@
 #include <stdio.h>
 #include "malloc.h"
 
-#define shift_address(addr, size) \
-	((void *)((char *)(addr) + (size)))
-#define is_allocated(x) ((x) & 1)
-#define sizeof_chunk(x) ((x) ^ 1)
-#define allocate(x) (*((char *)(x)) += 1)
-#define unallocate(x) (*((char *)(x)) -= 1)
+
+
+size_t largest = 0;
 
 /**
  * align - returns the page-aligned value of a quantity
@@ -20,13 +17,10 @@ size_t align(size_t size)
 {
 	if (!size)
 		return (0);
-
 	if (size < 8)
 		return (8);
-
 	if (size % 8 == 0)
 		return (size);
-
 	return (size + (8 - (size % 8)));
 }
 
@@ -41,23 +35,28 @@ size_t align(size_t size)
 void *_malloc(size_t size)
 {
 	size_t chunk_size = align(size + sizeof(size_t));
-	static void *next_spot;
-	static size_t available, allocated;
+	static void *first_spot, *next_spot;
+	static size_t largest, available, allocated;
 	void *tmp;
 	static long pagesize;
 
 	if (size == 0)
 		return (NULL);
-
+	if (chunk_size < largest)
+	{
+		for (tmp = first_spot; is_allocated(tmp); )
+			tmp = shift_address(tmp, sizeof_chunk(tmp));
+		return (tmp);
+	}
 	while (available < chunk_size)
 	{
-		if (!next_spot)
+		if (!first_spot)
 		{
 			pagesize = sysconf(_SC_PAGESIZE);
-			next_spot = sbrk(pagesize);
+			first_spot = sbrk(pagesize), next_spot = first_spot;
 			if (next_spot == (void *)-1)
 			{
-				next_spot = NULL;
+				next_spot = NULL, first_spot = NULL;
 				return (NULL);
 			}
 		}
@@ -65,11 +64,9 @@ void *_malloc(size_t size)
 		{
 			return (NULL);
 		}
-
 		allocated += pagesize;
 		available += pagesize;
 	}
-
 	tmp = next_spot;
 	memcpy(tmp, &chunk_size, sizeof(chunk_size));
 	allocate(tmp);
