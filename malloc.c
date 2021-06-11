@@ -85,15 +85,26 @@ void *_malloc(size_t size)
 void *return_existing_chunk(void *tmp, size_t chunk_size)
 {
 	void *tmp2;
+	size_t yes_indeed;
 	static size_t tmp_largest;
 
 
 	if (!is_allocated(tmp) && sizeof_chunk(tmp) >= chunk_size)
 	{
+		yes_indeed = (sizeof_chunk(tmp) == largest_available_chunk_size);
+		tmp_largest = sizeof_chunk(tmp);
+		memcpy(tmp, &chunk_size, sizeof(chunk_size));
 		allocate(tmp);
-		if (sizeof_chunk(tmp) <= largest_available_chunk_size)
+		if (tmp_largest > chunk_size && (tmp_largest - chunk_size) > 8)
 		{
 			tmp2 = next_chunk(tmp);
+			tmp_largest = tmp_largest - chunk_size;
+			memcpy(tmp2, &tmp_largest, sizeof(tmp_largest));
+		}
+
+		if (yes_indeed)
+		{
+			tmp_largest = sizeof_chunk(tmp2);
 			for (tmp2 = next_chunk(tmp); sizeof_chunk(tmp2); tmp2 = next_chunk(tmp2))
 				if (!is_allocated(tmp2) && sizeof_chunk(tmp2) > tmp_largest)
 					tmp_largest = sizeof_chunk(tmp2);
